@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<title>Simulação – Portaria Veicular com TAG UHF (FCO)</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1c2430;--mut:#667085;--line:#e3e6eb;--ok:#168a4a;--okbg:#e6f6ec;--no:#c0392b;--nobg:#fdecea;--warn:#b7791f;--warnbg:#fff4de;--acc:#1f5fbf;--accbg:#e8f0fc}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:14px 20px;background:#14213d;color:#fff;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between}
+header h1{font-size:17px;margin:0;font-weight:600}
+header small{color:#b8c2d8}
+.clock{font:600 22px ui-monospace,Menlo,monospace;letter-spacing:1px}
+main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:14px;padding:14px;max-width:1400px;margin:0 auto}
+@media(max-width:980px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+#view{position:relative;height:470px;border-radius:8px;overflow:hidden;touch-action:none;background:#cfe3f5}#view canvas{display:block;cursor:grab}.ov{position:absolute;left:10px;top:10px;background:rgba(15,23,42,.78);color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;pointer-events:none}.ov span{color:#b8c2d8}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+button,select,input{font:inherit}
+button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 11px;cursor:pointer}
+button:hover{background:#f0f2f5}
+button.p{background:var(--acc);color:#fff;border-color:var(--acc)}button.p:hover{background:#1a4f9f}
+button.w{background:var(--warnbg);border-color:#ecd49b}
+select,input[type=time],input[type=text]{border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:#fff}
+label{display:inline-flex;gap:6px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px}
+.stat{background:var(--bg);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font-size:20px}.stat span{font-size:11px;color:var(--mut)}
+.gq{display:flex;justify-content:space-between;gap:8px;align-items:center;background:var(--warnbg);border:1px solid #ecd49b;border-radius:8px;padding:8px;margin-bottom:6px;font-size:13px}.gb{display:flex;gap:6px}
+#log{height:340px;overflow:auto;font-size:12.5px}
+.ev{border-left:4px solid var(--line);padding:5px 8px;margin-bottom:5px;background:var(--bg);border-radius:0 6px 6px 0}
+.ev.ok{border-color:var(--ok);background:var(--okbg)}.ev.no{border-color:var(--no);background:var(--nobg)}.ev.wr{border-color:var(--warn);background:var(--warnbg)}.ev.in{border-color:var(--acc);background:var(--accbg)}
+.ev .t{font:11px ui-monospace,monospace;color:var(--mut)}
+.pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--accbg);color:var(--acc)}
+.pill.off{background:var(--warnbg);color:var(--warn)}
+.tabs{display:flex;gap:4px;margin:14px 0 0;border-bottom:1px solid var(--line)}
+.tab{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 12px;color:var(--mut)}
+.tab.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:5px 7px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:600;font-size:12px}
+td.r,th.r{text-align:right}
+.st{font-size:11px;padding:1px 7px;border-radius:99px}
+.st.ativo{background:var(--okbg);color:var(--ok)}.st.bloqueado,.st.cancelado{background:var(--nobg);color:var(--no)}
+.sched{display:grid;grid-template-columns:130px auto auto;gap:6px 10px;align-items:center}
+.note{color:var(--mut);font-size:12px;margin-top:8px}
+.tw{max-height:300px;overflow:auto}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Portaria Veicular com TAG UHF — Simulação</h1><small>FCO – Faculdade de Odontologia · proposta MR Tecnologia em Ponto e Acesso (13/11/2026)</small></div>
+  <div style="text-align:right"><div class="clock" id="clock">07:30</div><small id="srvState"></small></div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Portaria (3D, escala real)</h2>
+      <div id="view"><div class="ov"><b id="gstat">PORTÃO FECHADO</b><br><span>carro 4,5 × 1,9 m · moto 2,0 × 0,8 m · vão 6 m</span></div></div>
+      <div class="row" style="margin-top:8px"><span style="color:var(--mut);font-size:12px">Câmera (arraste para girar, roda para zoom):</span><button data-cam="persp">Perspectiva</button><button data-cam="aerea">Vista aérea</button><button data-cam="porteiro">Porteiro</button><button data-cam="motorista">Motorista</button></div>
+      <div class="row">
+        <label>Veículo: <select id="selUser"></select></label>
+        <label>Sentido: <select id="selDir"><option value="1">Entrada →</option><option value="-1">Saída ←</option></select></label>
+        <button class="p" id="bSpawn">Gerar veículo</button>
+        <button id="bNoTag">Veículo sem TAG</button>
+        <button id="bRand">Aleatório</button>
+        <label><input type="checkbox" id="auto"> Tráfego automático</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="srvOn" checked> Servidor IDSecure online</label>
+        <label>Relógio: <select id="speed"><option value="1">tempo real</option><option value="60" selected>1 min/s</option><option value="300">5 min/s</option><option value="0">pausado</option></select></label>
+        <label>Ajustar hora: <input type="time" id="setTime" value="07:30"></label>
+        <button id="bSetTime">Aplicar</button>
+      </div>
+      <div class="note">Duas vias de acesso (entrada e saída, 3 m cada) sob o mesmo portão de 2 folhas de 3 m (vão de 6 m), com uma leitora UHF por via (alcance de 12 m). Veículos e vias em escala real. Cada via é independente: quem aguarda o porteiro na entrada não atrapalha a saída, e vice-versa. Se o sistema negar, ou o veículo não tiver TAG, o porteiro decide no painel: autorizar (o portão abre) ou negar (o veículo retorna pela lateral). Se o sistema negar, ou o veículo não tiver TAG, o porteiro decide no painel ao lado: autorizar (abre o portão) ou negar (o veículo retorna). Se o servidor cair, a controladora autônoma decide com a base local e sincroniza depois.</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" data-t="cad">Cadastro de TAGs</button>
+      <button class="tab" data-t="reg">Regras de acesso</button>
+    </div>
+    <div class="card" style="border-top:0;border-radius:0 0 10px 10px">
+      <div id="t-cad">
+        <div class="tw"><table><thead><tr><th>TAG (EPC)</th><th>Nome</th><th>Placa</th><th>Tipo</th><th>Setor</th><th>Situação</th><th></th></tr></thead><tbody id="tbUsers"></tbody></table></div>
+        <div class="row">
+          <input type="text" id="nNome" placeholder="Nome" size="14"><input type="text" id="nPlaca" placeholder="Placa" size="8" maxlength="8">
+          <select id="nTipo"><option value="carro">Carro</option><option value="moto">Moto</option></select>
+          <select id="nDept"></select><button class="p" id="bAdd">Cadastrar TAG</button>
+        </div>
+        <div class="note" id="tagStock"></div>
+      </div>
+      <div id="t-reg" class="hide">
+        <div class="sched" id="schedBox"></div>
+        <div class="row">
+          <label><input type="checkbox" id="apb"> Anti-dupla-passagem (não entra quem já está dentro; não sai quem está fora)</label>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="freeExit" checked> Saída livre fora do horário (cadastro ativo)</label>
+        </div>
+        <div class="note">Regras de liberação por horário e setor. Cadastros bloqueados ou cancelados são sempre negados.</div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>Painel</h2>
+    <div class="stats">
+      <div class="stat"><b id="sIn">0</b><span>dentro</span></div>
+      <div class="stat"><b id="sOk">0</b><span>liberados</span></div>
+      <div class="stat"><b id="sNo">0</b><span>negados pelo sistema</span></div>
+      <div class="stat"><b id="sGd">0</b><span>autorizados pelo porteiro</span></div>
+      <div class="stat"><b id="sPend">0</b><span>a sincronizar</span></div>
+    </div>
+    <h2>Porteiro – decisões pendentes</h2><div id="guard" style="margin-bottom:12px"></div>
+    <h2>Eventos</h2>
+    <div id="log"></div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+// ---------- Dados ----------
+const hh=s=>{const[a,b]=s.split(':').map(Number);return a*60+b};
+const fmt=m=>{m=((Math.floor(m)%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const sched={ 'Direção':['00:00','23:59'],'Docentes':['06:00','23:00'],'Funcionários':['05:30','22:00'],'Alunos':['06:30','23:00'],'Terceirizados':['07:00','18:00']};
+const users=[
+ ['Ana Beatriz','QWE1A23','carro','Docentes'],['Carlos Mendes','PHK4F56','carro','Docentes'],['Dr. Guilherme','RTY2B34','carro','Direção'],
+ ['Fernanda Lima','HJL7C89','carro','Funcionários'],['Paulo Souza','GGA3D12','moto','Funcionários'],['Juliana Costa','LMN5E67','carro','Alunos'],
+ ['Rafael Alves','OPQ8G90','moto','Alunos'],['Marina Dias','STU6H21','carro','Alunos'],['Jorge (limpeza)','VWX9J43','carro','Terceirizados'],
+ ['Tiago (manutenção)','YZA1K65','moto','Terceirizados'],['Luciana Rocha','BCD2L87','carro','Docentes'],['Bruno Pires','EFG4M09','carro','Alunos']
+].map((u,i)=>({tag:'E200 '+(3412+i*7).toString(16).toUpperCase().padStart(4,'0')+' '+(0xA0F1+i*131).toString(16).toUpperCase(),nome:u[0],placa:u[1],tipo:u[2],dept:u[3],st:'ativo'}));
+users[7].st='bloqueado'; users[10].st='cancelado';
+const colors=['#c0392b','#2c3e50','#ecf0f1','#7f8c8d','#2980b9','#27ae60','#f1c40f','#8e44ad','#16a085','#d35400'];
+
+// ---------- Estado (unidades em METROS) ----------
+const S={min:7*60+30,speed:60,online:true,apb:false,freeExit:true,inside:new Set(),ok:0,no:0,guard:0,pending:0,vehicles:[],nextId:1};
+const $=id=>document.getElementById(id);
+const R12=12,STOP=1.2,SPEED=4.5,SPAWN=30,LEAF=3,LANEW=1.5; // 2 pistas de 3 m: entrada (+z) e saída (-z)
+const laneZ=d=>d>0?LANEW:-LANEW; // portão: 2 folhas de 3 m = vão de 6 m
+const gate={open:0,hold:0};
+let now=0;
+
+// ---------- Log ----------
+function log(cls,html){const d=document.createElement('div');d.className='ev '+cls;d.innerHTML='<span class="t">'+fmt(S.min)+'</span> '+html;const L=$('log');L.prepend(d);while(L.children.length>120)L.lastChild.remove();}
+function stats(){$('sIn').textContent=S.inside.size;$('sOk').textContent=S.ok;$('sNo').textContent=S.no;$('sGd').textContent=S.guard;$('sPend').textContent=S.pending;
+  $('srvState').innerHTML=S.online?'<span class="pill">IDSecure online</span>':'<span class="pill off">Servidor offline – modo autônomo</span>';}
+
+// ---------- Regras ----------
+function decide(u,dir){
+  if(!u)return[false,'TAG não cadastrada'];
+  if(u.st!=='ativo')return[false,'cadastro '+u.st];
+  const [a,b]=sched[u.dept],t=S.min%1440;
+  const inWin=t>=hh(a)&&t<=hh(b);
+  if(!inWin&&!(dir<0&&S.freeExit))return[false,'fora do horário ('+u.dept+' '+a+'–'+b+')'];
+  if(S.apb){const ins=S.inside.has(u.tag);if(dir>0&&ins)return[false,'já consta dentro (anti-dupla-passagem)'];if(dir<0&&!ins)return[false,'não consta dentro (anti-dupla-passagem)'];}
+  return[true,'dentro das regras do setor '+u.dept];
+}
+
+// ---------- Veículos ----------
+function spawn(u,dir){
+  const type=u?u.tipo:(Math.random()<.25?'moto':'carro');
+  const len=type==='moto'?2.0:4.5,wid=type==='moto'?0.8:1.9;
+  const x=dir>0?-SPAWN:SPAWN;
+  const same=S.vehicles.filter(v=>v.dir===dir&&v.state==='move');
+  const last=same.reduce((m,v)=>dir>0?Math.min(m,v.x):Math.max(m,v.x),dir>0?1e9:-1e9);
+  if(same.length&&Math.abs(last-x)<len+6){log('wr','Fila na via – aguarde para gerar outro veículo.');return;}
+  const v={id:S.nextId++,u,type,dir,vx:dir,x,z:laneZ(dir),len,wid,color:colors[Math.random()*colors.length|0],
+    plate:u?u.placa:'SEM-TAG',state:'move',read:false,dec:null,t:0,passed:false,req:false,byGuard:false,reason:'',phase:0};
+  buildVehicle(v);S.vehicles.push(v);
+}
+function startRead(v){
+  v.read=true;v.dec='reading';v.t=now+(S.online?.4:.1);
+  log('in','📡 TAG lida a ≤12 m · <b>'+v.u.tag+'</b> · '+(v.dir>0?'entrada':'saída')+(S.online?' · consultando IDSecure…':' · servidor offline, base local'));
+}
+function who(v){return v.u?v.u.nome+' ('+v.u.placa+')':'Veículo sem TAG';}
+function resolve(v){
+  const [ok,why]=decide(v.u,v.dir),src=S.online?'IDSecure':'controladora (local)';
+  if(!S.online)S.pending++;
+  v.reason=why;
+  if(ok){S.ok++;v.dec='ok';gate.hold=Math.max(gate.hold,now+14);
+    log('ok','✅ <b>LIBERADO</b> · '+who(v)+' · '+(v.dir>0?'entrada':'saída')+'<br><small>'+why+' · decisão: '+src+'</small>');}
+  else{S.no++;v.dec='sysno';
+    log('no','⛔ <b>NEGADO PELO SISTEMA</b> · '+who(v)+' · '+(v.dir>0?'entrada':'saída')+'<br><small>'+why+' · decisão: '+src+' · aguardando porteiro</small>');}
+  stats();
+}
+function guardAuthorize(id){const v=S.vehicles.find(x=>x.id===id);if(!v||!v.req)return;
+  v.req=false;v.dec='ok';v.byGuard=true;S.guard++;gate.hold=Math.max(gate.hold,now+14);
+  log('ok','🧑‍✈️ <b>PORTEIRO AUTORIZOU</b> · '+who(v)+' · '+(v.dir>0?'entrada':'saída')+'<br><small>exceção registrada (motivo do bloqueio: '+(v.reason||'sem TAG')+')</small>');stats();}
+function guardDeny(id){const v=S.vehicles.find(x=>x.id===id);if(!v||!v.req)return;
+  v.req=false;v.dec='no';v.state='leaving';v.phase=0;
+  log('no','🧑‍✈️ <b>PORTEIRO NEGOU</b> · '+who(v)+' · veículo retorna.');stats();}
+
+function update(dt){
+  S.min+=dt*S.speed/60;
+  // portão compartilhado pelas duas pistas: fica aberto enquanto houver veículo liberado ou dentro da área do portão
+  const busy=S.vehicles.some(v=>v.state==='move'&&Math.abs(v.x)<v.len/2+3&&(v.dec==='ok'||v.passed));
+  gate.open+=((now<gate.hold||busy)?1:-1)*dt*0.3;gate.open=Math.max(0,Math.min(1,gate.open));
+  for(const v of S.vehicles){
+    if(v.state==='move'){
+      if(!v.read&&v.u&&Math.abs(v.x)<=R12)startRead(v);
+      if(v.dec==='reading'&&now>=v.t)resolve(v);
+      const distFront=-(v.x+v.vx*v.len/2)*v.vx; // distância da frente do veículo ao portão
+      let go=true;
+      for(const o of S.vehicles){if(o!==v&&o.dir===v.dir&&o.state==='move'){const g=(o.x-v.x)*v.vx;if(g>0&&g<(o.len+v.len)/2+1)go=false;}}
+      if(distFront>0&&distFront<=STOP){
+        if(v.dec==='ok'){gate.hold=Math.max(gate.hold,now+2);if(gate.open<=0.9)go=false;}
+        else{
+          go=false;
+          if(!v.req&&(v.dec==='sysno'||!v.u)){v.req=true;v.reqT=now;
+            if(!v.u)v.reason='veículo sem TAG';
+            log('wr','🔔 Porteiro: '+who(v)+' aguarda decisão ('+(v.dir>0?'entrada':'saída')+').');}
+        }
+      }
+      if(go)v.x+=v.vx*dt*SPEED;
+      if(!v.passed&&v.x*v.dir>0){
+        v.passed=true;
+        if(v.u){if(v.dir>0)S.inside.add(v.u.tag);else S.inside.delete(v.u.tag);}
+        if(!S.vehicles.some(o=>o.dec==='ok'&&!o.passed))gate.hold=Math.min(gate.hold,now+1.5);
+        stats();
+      }
+      if(Math.abs(v.x)>SPAWN+4)v.state='gone';
+    }else if(v.state==='leaving'){
+      const tz=(v.dir>0?4:-4);
+      if(v.phase===0){const d=tz-v.z;v.z+=Math.sign(d)*Math.min(Math.abs(d),dt*3.5);if(Math.abs(tz-v.z)<.02){v.phase=1;v.vx=-v.dir;}}
+      else v.x+=v.vx*dt*SPEED;
+      if(Math.abs(v.x)>SPAWN+4)v.state='gone';
+    }
+  }
+  for(const v of S.vehicles)if(v.state==='gone')scene.remove(v.mesh);
+  S.vehicles=S.vehicles.filter(v=>v.state!=='gone');
+  if(S.online&&S.pending>0){S.pending=0;log('in','🔄 Servidor voltou: eventos da controladora sincronizados.');stats();}
+}
+
+// ---------- Cena 3D ----------
+const view=$('view');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;
+view.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xcfe3f5);scene.fog=new THREE.Fog(0xcfe3f5,70,140);
+const camera=new THREE.PerspectiveCamera(42,1,.1,300);
+scene.add(new THREE.HemisphereLight(0xffffff,0x7a8a6a,.75));
+const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(-18,30,14);sun.castShadow=true;
+sun.shadow.camera.left=-34;sun.shadow.camera.right=34;sun.shadow.camera.top=20;sun.shadow.camera.bottom=-20;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+const M=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8,metalness:.05},o||{}));
+function box(w,h,d,mat,x,y,z,parent,shadow){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=shadow!==false;m.receiveShadow=true;(parent||scene).add(m);return m;}
+// terreno
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,120),M(0x8fb07c));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const asph=M(0x3b4047,{roughness:.95});
+box(120,.06,10,asph,0,.03,0,scene,false);                       // via: 10 m de largura (vão do portão = 6 m)
+box(120,.05,2,M(0xc9ccd0),0,.025,6,scene,false);box(120,.05,2,M(0xc9ccd0),0,.025,-6,scene,false); // calçadas
+box(120,.04,1,M(0xd8d8d4),0,.02,-5.5,scene,false);
+// faixas
+const white=M(0xf2f2f2,{roughness:.6});
+const yel=M(0xe0b400,{roughness:.6});
+for(const sx of[-1,1]){box(26,.07,.1,yel,sx*16,.06,0,scene,false);}   // divisória entre entrada e saída
+for(const sx of[-1,1]){box(.35,.07,3,white,sx*STOP,.06,sx>0?-LANEW:LANEW,scene,false);}  // linhas de parada (cada pista)
+for(const [x,z] of[[-4.5,1.5],[4.5,-1.5]]){const ar=new THREE.Mesh(new THREE.ConeGeometry(.5,1.4,3),white);ar.rotation.z=x<0?-Math.PI/2:Math.PI/2;ar.rotation.x=0;ar.position.set(x,.07,z);ar.scale.set(1,1,.05);scene.add(ar);}
+// muro com vão de 6 m
+const wallM=M(0xb5a592),post=M(0x8a7a68);
+for(const sz of[-1,1]){box(.4,2.2,40,wallM,0,1.1,sz*(3+20),scene);box(.6,2.5,.6,post,0,1.25,sz*3.1);}
+// portão: duas folhas de 3 m, correm para o MESMO lado (-z) em trilhos paralelos
+function makeLeaf(x){const g=new THREE.Group(),m=M(0x5f6874,{metalness:.4}),y=M(0xe0a800);
+  for(let i=0;i<8;i++)box(.06,.07,2.94,m,0,.25+i*.2,0,g);
+  for(const z of[-1.45,0,1.45])box(.07,1.65,.08,m,0,.95,z,g);
+  box(.05,.05,2.94,y,0,1.85,0,g);g.position.x=x;scene.add(g);return g;}
+const leafA=makeLeaf(.28),leafB=makeLeaf(.42);
+box(.5,.6,.9,M(0x14213d),.75,.35,-4.5,scene);                    // motor de fuso
+box(.3,1.8,.3,post,.28,.9,-6.2,scene);                            // batente de recolhimento
+// leitoras UHF (uma de cada lado) e guarita
+function island(x0,x1){box(x1-x0,.18,.7,M(0xb9bcc0),(x0+x1)/2,.09,0,scene,false);}
+island(-2.8,-.9);island(.9,2.8);
+function reader(x,z,lbl){const g=new THREE.Group();box(.12,1.6,.12,M(0x222a35),0,.8,0,g);box(.35,.5,.18,M(0x14213d),0,1.75,0,g);box(.06,.06,.06,new THREE.MeshBasicMaterial({color:0x4ade80}),0,1.95,.1,g,false);g.position.set(x,0,z);scene.add(g);}
+reader(-1.8,0);reader(1.8,0);
+const booth=new THREE.Group();box(2.4,2.5,2.2,M(0xe9ecef),0,1.25,0,booth);box(2.6,.15,2.4,M(0x5b6470),0,2.55,0,booth);box(.05,.9,1.6,M(0x6fa8dc,{transparent:true,opacity:.6}),-1.22,1.45,0,booth,false);booth.position.set(4.5,0,5.4);scene.add(booth);
+// zonas de leitura (12 m)
+function zone(x0,x1){/* uma zona por sentido */const g=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,10),new THREE.MeshBasicMaterial({color:0x4aa3ff,transparent:true,opacity:.13,depthWrite:false}));g.rotation.x=-Math.PI/2;g.position.set((x0+x1)/2,.08,0);scene.add(g);
+  const e=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(x1-x0,10)),new THREE.LineBasicMaterial({color:0xffffff}));e.rotation.x=-Math.PI/2;e.position.copy(g.position);e.position.y=.09;scene.add(e);}
+zone(-12,-.3);zone(.3,12);
+function textSprite(t,w,h,fs){const c=document.createElement('canvas');c.width=w*64;c.height=h*64;const x=c.getContext('2d');x.font='600 '+fs+'px system-ui';x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';x.shadowColor='#000';x.shadowBlur=6;x.fillText(t,c.width/2,c.height/2);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(w,h,1);s.renderOrder=9;return s;}
+for(const [t,x,z,w] of[['alcance de leitura 12 m',-6,5.6,5],['alcance de leitura 12 m',6,5.6,5],['RUA (fora)',-20,7.4,4],['CAMPUS FCO (dentro)',20,7.4,6],['entrada →',-7,3.6,3],['← saída',7,-3.6,3],['portão: 2 folhas × 3 m = vão de 6 m',0,3.4,7]]){const s=textSprite(t,w,.7,26);s.position.set(x,.9,z);scene.add(s);}
+
+// veículos 3D (carro 4,5 × 1,9 m; moto 2,0 × 0,8 m)
+const glass=M(0x2b3a4a,{roughness:.2,metalness:.6}),tire=M(0x16181b),lamp=new THREE.MeshBasicMaterial({color:0xfff2b0}),tagM=new THREE.MeshBasicMaterial({color:0xffd54a});
+function cyl(r,w,x,y,z,g){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,w,16),tire);m.rotation.x=Math.PI/2;m.position.set(x,y,z);m.castShadow=true;g.add(m);}
+function buildVehicle(v){
+  const g=new THREE.Group(),body=M(v.color,{roughness:.45,metalness:.35});
+  if(v.type==='carro'){
+    box(4.5,.7,1.9,body,0,.62,0,g);box(2.3,.62,1.7,glass,-.35,1.28,0,g);box(2.0,.05,1.5,body,-.35,1.62,0,g);
+    for(const x of[-1.45,1.45])for(const z of[-.88,.88])cyl(.33,.24,x,.33,z,g);
+    for(const z of[-.65,.65])box(.06,.14,.3,lamp,2.26,.7,z,g,false);
+    if(v.u)box(.03,.1,.2,tagM,.78,1.2,0,g,false);
+  }else{
+    box(1.3,.35,.3,body,0,.7,0,g);box(.45,.3,.3,body,-.5,.95,0,g);
+    cyl(.32,.14,.7,.32,0,g);cyl(.32,.14,-.7,.32,0,g);box(.08,.08,.8,glass,.55,1.05,0,g);box(.06,.14,.2,lamp,.95,.85,0,g,false);
+    box(.35,.6,.42,M(0x333a45),-.15,1.2,0,g);const h=new THREE.Mesh(new THREE.SphereGeometry(.2,12,12),M(0xe8c39e));h.position.set(-.05,1.7,0);h.castShadow=true;g.add(h);
+    if(v.u)box(.03,.1,.14,tagM,.82,.98,0,g,false);
+  }
+  const c=document.createElement('canvas');c.width=320;c.height=100;const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sp.scale.set(4.2,1.3,1);sp.position.y=v.type==='carro'?3:2.7;sp.renderOrder=10;g.add(sp);
+  v.mesh=g;v.bodyMat=body;v.lbl={c,tex,sp,key:''};scene.add(g);
+}
+function drawLabel(v,lab,col){
+  const key=v.plate+'|'+lab;if(v.lbl.key===key)return;v.lbl.key=key;
+  const x=v.lbl.c.getContext('2d');x.clearRect(0,0,320,100);
+  x.fillStyle='rgba(15,23,42,.82)';x.beginPath();x.roundRect(4,4,312,92,14);x.fill();
+  x.textAlign='center';x.fillStyle='#fff';x.font='700 34px ui-monospace,monospace';x.fillText(v.plate,160,40);
+  x.fillStyle=col;x.font='600 25px system-ui';x.fillText(lab||(v.dir>0?'entrada →':'← saída'),160,76);v.lbl.tex.needsUpdate=true;
+}
+function draw(){
+  const o=gate.open;
+  leafA.position.z=-1.5-LEAF*o;leafB.position.z=1.5-2*LEAF*o;
+  $('gstat').textContent=o>.95?'PORTÃO ABERTO':o<.05?'PORTÃO FECHADO':'PORTÃO EM MOVIMENTO';
+  for(const v of S.vehicles){
+    v.mesh.position.set(v.x,0,v.z);v.mesh.rotation.y=v.vx>0?0:Math.PI;
+    let lab=null,c='#cbd5e1',em=0x000000;
+    if(v.state==='leaving'){lab='NEGADO – retornando';c='#ff8a7a';em=0x551111;}
+    else if(v.req){lab='⏳ AGUARDA PORTEIRO';c='#ffd36b';em=0x5a4300;}
+    else if(v.dec==='reading'){lab='lendo TAG…';c='#9fd0ff';em=0x0b2a52;}
+    else if(v.dec==='ok'&&!v.passed){lab=v.byGuard?'AUTORIZADO (porteiro)':'LIBERADO';c='#8dfab0';em=0x0b4a22;}
+    else if(v.dec==='sysno'){lab='negado pelo sistema';c='#ff8a7a';em=0x551111;}
+    v.bodyMat.emissive.setHex(em);drawLabel(v,lab,c);
+  }
+  renderer.render(scene,camera);
+}
+// câmera orbital (arrastar = girar · roda = zoom)
+const cam={t:new THREE.Vector3(0,.8,0),th:-.6,ph:1.0,r:36};
+const PRESETS={persp:{th:-.6,ph:1.0,r:36,t:[0,.8,0]},aerea:{th:0,ph:.04,r:40,t:[0,0,0]},porteiro:{th:-1.15,ph:1.3,r:11,t:[0,1,0]},motorista:{th:-Math.PI/2,ph:1.45,r:15,t:[0,1.2,0]}};
+function setCam(k){const p=PRESETS[k];Object.assign(cam,{th:p.th,ph:p.ph,r:p.r});cam.t.set(...p.t);}
+function placeCam(){camera.position.set(cam.t.x+cam.r*Math.sin(cam.ph)*Math.sin(cam.th),cam.t.y+cam.r*Math.cos(cam.ph),cam.t.z+cam.r*Math.sin(cam.ph)*Math.cos(cam.th));camera.lookAt(cam.t);}
+let drag=null;
+renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};renderer.domElement.setPointerCapture(e.pointerId);});
+renderer.domElement.addEventListener('pointerup',()=>drag=null);
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;cam.th-=(e.clientX-drag.x)*.006;cam.ph=Math.max(.04,Math.min(1.5,cam.ph-(e.clientY-drag.y)*.005));drag={x:e.clientX,y:e.clientY};});
+renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.max(5,Math.min(70,cam.r*(1+e.deltaY*.001)));},{passive:false});
+document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>setCam(b.dataset.cam));
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(view);resize();
+
+// ---------- Porteiro ----------
+let gKey=null;
+function renderGuard(){
+  const q=S.vehicles.filter(v=>v.req).sort((a,b)=>a.reqT-b.reqT);
+  const key=q.map(v=>v.id).join(',');if(key===gKey)return;gKey=key;
+  $('guard').innerHTML=q.length?q.map(v=>`<div class="gq"><div><b>${v.plate}</b> · ${v.dir>0?'entrada ⟶':'⟵ saída'}<br><small>${v.u?v.u.nome+' · '+v.u.dept:'sem TAG'} — <i>${v.reason}</i></small></div><div class="gb"><button class="p" data-a="ok" data-id="${v.id}">Autorizar</button><button data-a="no" data-id="${v.id}">Negar</button></div></div>`).join(''):'<div class="note" style="margin:0">Nenhum veículo aguardando. Veículos negados pelo sistema ou sem TAG aparecem aqui ao chegar no portão.</div>';
+}
+document.addEventListener('click',e=>{const a=e.target.dataset&&e.target.dataset.a;if(!a)return;const id=+e.target.dataset.id;a==='ok'?guardAuthorize(id):guardDeny(id);gKey=null;renderGuard();});
+
+// ---------- Loop ----------
+let last=performance.now(),autoT=0;
+function loop(t){
+  const dt=Math.min(.05,(t-last)/1000);last=t;now+=dt;
+  update(dt);
+  if($('auto').checked&&now>autoT&&S.vehicles.filter(v=>v.req).length<2){autoT=now+3+Math.random()*3;randomSpawn();}
+  placeCam();draw();renderGuard();
+  if(document.activeElement!==$('setTime'))$('clock').textContent=fmt(S.min);
+  requestAnimationFrame(loop);
+}
+function randomSpawn(){
+  if(Math.random()<.12){spawn(null,Math.random()<.5?1:-1);return;}
+  const u=users[Math.random()*users.length|0];
+  let dir=S.inside.has(u.tag)?-1:1; if(!S.apb&&Math.random()<.2)dir=-dir;
+  spawn(u,dir);
+}
+
+// ---------- UI ----------
+function fillSelects(){
+  $('selUser').innerHTML=users.map((u,i)=>`<option value="${i}">${u.nome} · ${u.placa} · ${u.dept}${u.st!=='ativo'?' ('+u.st+')':''}</option>`).join('');
+  $('nDept').innerHTML=Object.keys(sched).map(d=>`<option>${d}</option>`).join('');
+}
+function renderUsers(){
+  $('tbUsers').innerHTML=users.map((u,i)=>`<tr><td><code>${u.tag}</code></td><td>${u.nome}</td><td>${u.placa}</td><td>${u.tipo}</td><td>${u.dept}</td><td><span class="st ${u.st}">${u.st}</span></td><td><button data-i="${i}">${u.st==='ativo'?'Bloquear':'Ativar'}</button></td></tr>`).join('');
+  const cars=users.filter(u=>u.tipo==='carro').length,mo=users.length-cars;
+  $('tagStock').textContent=`TAGs emitidas: ${cars}/300 de carro e ${mo}/50 de moto. Capacidade licenciada: ${users.length}/10.000 usuários no IDSecure.`;
+  fillSelects();
+}
+function renderSched(){
+  $('schedBox').innerHTML='<b>Setor</b><b>Das</b><b>Até</b>'+Object.entries(sched).map(([d,[a,b]])=>`<span>${d}</span><input type="time" data-d="${d}" data-k="0" value="${a}"><input type="time" data-d="${d}" data-k="1" value="${b}">`).join('');
+}
+$('tbUsers').addEventListener('click',e=>{const i=e.target.dataset.i;if(i==null)return;const u=users[i];u.st=u.st==='ativo'?'bloqueado':'ativo';log('in','Cadastro atualizado no servidor: '+u.nome+' → '+u.st+(S.online?'':' (será propagado quando o servidor voltar)'));renderUsers();});
+$('schedBox').addEventListener('change',e=>{const d=e.target.dataset.d;if(!d)return;sched[d][+e.target.dataset.k]=e.target.value;});
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));for(const k of['cad','reg'])$('t-'+k).classList.toggle('hide',k!==b.dataset.t);});
+$('bSpawn').onclick=()=>spawn(users[$('selUser').value],+$('selDir').value);
+$('bNoTag').onclick=()=>spawn(null,+$('selDir').value);
+$('bRand').onclick=randomSpawn;
+$('srvOn').onchange=e=>{S.online=e.target.checked;log('wr',S.online?'Servidor IDSecure restabelecido.':'⚠️ Servidor IDSecure indisponível – controladoras operam de forma autônoma.');stats();};
+$('speed').onchange=e=>S.speed=+e.target.value;
+$('bSetTime').onclick=()=>{if($('setTime').value){S.min=hh($('setTime').value);log('in','Hora simulada ajustada para '+$('setTime').value+'.');}};
+$('apb').onchange=e=>S.apb=e.target.checked;
+$('freeExit').onchange=e=>S.freeExit=e.target.checked;
+$('bAdd').onclick=()=>{const n=$('nNome').value.trim(),p=$('nPlaca').value.trim().toUpperCase();if(!n||!p)return;
+  users.push({tag:'E200 '+(0x3500+users.length*7).toString(16).toUpperCase()+' '+(0xA0F1+users.length*131).toString(16).toUpperCase(),nome:n,placa:p,tipo:$('nTipo').value,dept:$('nDept').value,st:'ativo'});
+  $('nNome').value='';$('nPlaca').value='';renderUsers();$('selUser').value=users.length-1;log('in','Nova TAG cadastrada: '+n+' ('+p+').');};
+
+fillSelects();renderUsers();renderSched();stats();
+log('in','Sistema iniciado. 2 controladoras UHF + IDSecure Enterprise + motor de portão deslizante duplo.');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
